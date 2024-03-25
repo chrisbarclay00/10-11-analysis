@@ -1,0 +1,581 @@
+---
+title: "Stats crash course"
+date: "`r Sys.Date()`"
+author: "Austin Hart"
+output:
+  rmdformats::downcute:
+    self_contained: true
+    code_folding: show
+    use_bookdown: true
+    thumbnails: false
+    default_style: "dark"
+    downcute_theme: "default"
+---
+
+
+```{r setup, include=FALSE}
+## Libraries
+  library(knitr)
+  library(rmdformats)
+  library(tidyverse)
+  library(stargazer)
+  library(kableExtra)
+
+## Global options
+knitr::opts_chunk$set(
+  echo = T, 
+  eval = T, 
+  prompt = F,  
+  tidy = F, 
+  comment = NA, 
+  message = F, 
+  warning = F
+)
+```
+
+# Intro
+Analysts use statistics to summarize characteristics of observed data and to estimate parameters of a population beyond. Let's call these descriptive and inferential statistics respectively, though they often blend together in practice. We'll review both with an eye to communicating statistical analysis to a general audience. 
+
+## General notation  
+A few things to keep straight:  
+
+- $Y$: dependent, outcome, or response variable
+- $X$: independent, exposure, or predictor variable
+- $Z$: confounder or control variable
+- $i$: a unit or case in some population of interest
+- $Y_i$: unit $i$'s observed value of $Y$
+
+Recall also that we use different notation for attributes of a sample (statistics) t attributes of a population (parameters):
+
+|                        | Sample   | Population  |
+|-----------------------:|:-----------:|:----------:|
+| Num. units                   | $n$         | $N$        |
+| Mean, $E(Y)$    | $\bar{Y}$   | $\mu$      |
+| Variance, $E[(Y-\mu)^2]$         | $s^2$         | $\sigma^2$   |
+| Slope coefficient      | $b$         | $\beta$    |
+
+
+## Descriptive statistics
+The aim is to communicate. Tell the audience about the characteristics of the data you collected. This should include a visual or tabular depiction of the distribution and appropriate statistical values. Descriptive analysis can focus on a single variable or the relationship among multiple variables. 
+
+## Inferential statistics
+A common goal of data analysis is to use what we see in a sample to estimate parameters of a broader population. Remember that this process is probabilistic. The core problem is sampling variability, or the tendency of different samples to yield different statistics and, therefore, different estimates of the population parameter. The bad news is that you can never know where your sample statistic falls within the distribution of possible sample statistics (the sampling distribution) or how close your estimate is to the parameter of interest. The good news is that you know a ton about the behavior of sample statistics. We know from the Central Limit Theorem, for example, that $\bar{Y} \sim N(\mu, \frac{\sigma}{\sqrt{n}})$:
+
+- $\bar{Y} \sim N$, sample means follow a normal distribution 
+- $E(\bar{Y}) = \mu$, sample mean is an unbiased estimator 
+- the standard error of sample means equals $\sigma/\sqrt{n}$^[In practice, the population standard deviation, $\sigma$, is unknown, and we use the sample standard deviation, $s$, instead. The sample standard deviation follows the Student's $t$ distribution.]
+
+This allows us to calculate the probability of observing certain values given some assumption about the population parameter. We call that assumption the null hypothesis. The null hypothesis is typically the "status quo" expectation, and it is the logical opposite of your expectation, the alternative hypothesis. For example, we might expect that the population mean of $Y$ is greater than 50. The null is anything that invalidates this expectation.
+
+- $H_A: ~ \mu > 50$
+- $H_0: ~ \mu \leq 50$ 
+
+We test the null hypothesis. Specifically, we evaluate the probability of observing our sample statistic, $\bar{Y}$ in this case, assuming the null hypothesis is true. We hold onto that null hypothesis until the probability, $p$, drops below a predetermined threshold, typically 0.05. 
+
+
+A few terms to keep straight:
+
+- **Significance level**, $\alpha$: probability threshold for rejecting null hypothesis, typically 0.05. Also the probability of rejecting a true null hypothesis (Type I error).  
+- **$p$-value**: probability of observing a sample statistic given the null hypothesis.  
+- **Statistically significant**: unlikely to be observed by chance alone given the null hypothesis; established when $p < \alpha$.  
+- **Confidence interval**: a range of estimates for an unknown parameter, typically constructed by padding the sample statistic with a margin of error.    
+- **Confidence level**, $1 - \alpha$: precision of estimated interval, typically 95%. In this case indicating that across all samples, 95% of such intervals include the parameter of interest.
+
+
+## Data and packages  
+Use an abridged version of the Quality of Government (QOG) Standard data (version Jan23, cross section). Refer to [the QOG codebook](https://www.qogdata.pol.gu.se/data/std_codebook_jan23.pdf) for further description of the data.
+
+```{r data}
+# load QOG data
+  load('qog23ex.rdata')
+```
+
+I rely on several packages for this exercise:
+```{r packs, eval = F}
+# load packages
+  library(tidyverse)
+  library(knitr)
+  library(modelr)
+  library(stargazer)
+  library(kableExtra)
+```
+
+# Numeric outcome variable
+I have a numeric variable, and I want to tell the world all about it. What now? All roads eventually lead to the mean. Keep that in mind here, and refer to the later sections on the transformations we might consider to mitigate skew (i.e., to normalize a distribution so that we can use the mean!).
+
+## One continuous variable  
+### Summary statistics  
+The best place to start is with the relevant moments and ranks of the distribution.^[The first three moments of a distribution are the mean, variance, and skew. Ranks are the centiles, e.g., the median (50th percentile) or maximum (100th percentile).] In almost every case, you want to know and communicate:
+
+- minimum and maximum scores
+- central tendency (mean/median)
+- dispersion (e.g., standard deviation)
+- skewness
+- any interesting or unusual features/patterns
+
+You can use the classic `summary()` function to get most of this. I'll show the `tidyverse` approach here for a more tailored output.
+
+```{r sumstats}
+# summarise in tidyverse
+  summarise(qog,
+    n = sum(!is.na(wdi_wip)),
+    Avg = mean(wdi_wip, na.rm = T),
+    StdDev = sd(wdi_wip, na.rm = T),
+    `0` = min(wdi_wip, na.rm = T),
+    `50` = median(wdi_wip, na.rm = T),
+    `100` = max(wdi_wip, na.rm = T)
+  ) |>
+  kable(digits = 1L) |>
+  add_header_above(header = c(" " = 3, "Percentiles" = 3))
+```
+
+### Visualization
+Simple is good here. Density plots are nice but can be difficult to explain. Box plots suffer the same fate. Histograms are a good compromise. Fully bare bones examples:
+
+```{r sumvis}
+# Base plot
+  p = ggplot(qog, aes(x = wdi_wip)) + theme_minimal()
+
+# Density plot
+  p + geom_density(fill = 'cornflowerblue')
+  
+# Box plot
+  p + geom_boxplot()
+  
+# Histogram
+  p + geom_histogram(color = 'white')
+```
+
+### Testing hypotheses
+A one-sample $t$−test, `t.test()`, compares the sample mean to a hypothesized population mean. The resulting $p$-value indicates the probability of observing a sample mean like the one in your data from a population defined by the null hypothesis.
+
+For example, evaluate the argument that women's representation across countries is above one-quarter $(H_0: ~ \mu \geq 25)$. Use this value as `mu`. Note also that this is a one-sided test, and the altnerative hypothesis is $H_A: ~ \mu < 25$. So we specify the `alternative` is 'less'.
+
+```{r ttest1}
+# One-sample t-test
+  t.test(qog$wdi_wip, mu = 25, alternative = 'less')
+```
+Note that $p < 0.05$ (`p = 0.007`) and we can reject the null hypothesis. That means the sample mean of 22.8 is significantly lower than 25; alternatively, you might report that it is highly unlikely we obsvere a mean this low from a population with a mean of 25 or higher. 
+
+
+## Group comparisons
+### Summary stats
+Let's compare the distribution of $Y$ across groups with different scores on  $X$. This requires identifying the grouping variable and piping into a `summarize` as before.
+
+```{r groupsum}
+# Create table
+  tab = 
+    group_by(qog, ht_region) |>
+    summarise(
+        n = sum(!is.na(wdi_wip)),
+        Avg = mean(wdi_wip, na.rm = T),
+        StdDev = sd(wdi_wip, na.rm = T),
+        `0` = min(wdi_wip, na.rm = T),
+        `50` = median(wdi_wip, na.rm = T),
+        `100` = max(wdi_wip, na.rm = T)
+      ) |>
+      na.omit()
+
+# Format for output
+  tab |>
+    kable(digits = 1L) |>
+    add_header_above(header = c(" " = 4, "Percentiles" = 3))
+```
+
+### Visualization
+To visualize group differences, consider boxplots by group or simply plotting the means from the table of summary stats.
+
+```{r groupviz}
+# Box plots
+  ggplot(qog, aes(x = fct_reorder(ht_region, wdi_wip, .fun = 'median'), 
+                  y = wdi_wip)) +
+    geom_boxplot() +
+    coord_flip()
+
+# Mean plot
+  ggplot(tab, aes(x = fct_reorder(ht_region, Avg), y = Avg)) +
+    geom_col() +
+    coord_flip()
+```
+
+### Testing hypotheses
+Want to know if the distrbution of $Y$ differs significantly across the categories of $X$? Use a difference of means $(t)$ test for a binary $X$; Use analysis of variance (ANOVA, $F$- test) where $X$ identifies more than two categories.
+
+Evaluate the argument that women's representation is significantly lower in majoritarian electoral systems relative to proportional representation systems:
+
+```{r ttest}
+# Difference of means test
+  t.test(wdi_wip ~ br_pvote, data = qog, alternative = 'less')
+```
+
+Note the line of statistics: `t = -4.832, df = 185, p-value = 1.414e-06`. Use these to describe the results. I find that women hold significantly fewer seats in non-PR systems than where seats are allocated proportionally. Specifically, women hold an average of 19% of seats in national parliament in non-PR electoral systems compared to 27% of seats in PR systems. It is unlikely we observe this difference by chance alone $(t = -4.83, df = 185, p < 0.05)$. 
+
+Next consider representation across region. ANOVA tests the null hypothesis that the group means are all equal $(\mu_1 = \mu_2 = \mu_3 ...)$.
+
+```{r aov}
+# Analysis of variance (ANOVA)
+  aov(wdi_wip ~ ht_region, qog) |>
+    summary()
+```
+Follow the factor `ht_region` across the row to find the relevant $F$ and $p$ values. Here we see that observed differences in representation across regions is statistically significant $F_{df=9} = 8.39, ~ p< 0.05)$.
+
+# Counts and frequencies   
+Categorical outcome measures require a different approach. Rather than summary statistics, the relevant information here is the frequency with which each value or category appears in the data.
+
+## One categorical variable
+Simple: just make a relative frequency table or bar chart and describe what you see. What's the modal category? Any unusual values of note?
+
+```{r count}
+# Relative frequency table
+  ft = count(qog, nelda_mbbe) |>
+    na.omit() |>
+    mutate(percent = n/sum(n) * 100) 
+
+  ft |>
+    kable(digits = 1L)
+  
+# Column plot
+  ggplot(ft, aes(x = nelda_mbbe, y = percent)) +
+    geom_col() +
+    coord_flip()
+```
+
+## Cross-tabulation
+One thing I find extremely clunky in R are cross-tabulations. There are some packages that do this quite well. I'll stick to the tidyverse solution here.
+
+We use cross-tabs to evaluate associations between categorical variables. The key is getting the construction right: 
+
+- categories of $Y$ define the rows; categories of $X$ define the columns
+- calculate relative frequency within $X$ (so cols sum to 100%)
+
+```{r xtab}
+# 1. Raw tabulation
+  xtab =
+    count(qog, nelda_mbbe, br_pvote) |>  # (OutcomeVar,ExposureVar)
+    na.omit() |>
+    pivot_wider( # into a 2-way table
+      names_from = br_pvote, # MUST be the ExposureVar
+      values_from = n, 
+      values_fill = 0
+    )
+# 2. Chi squared test of independence
+  chisq.test(xtab[-1]) # drop the names columns
+  
+# 3. Table for presentation
+  xtab %>%
+    mutate(Total = rowSums(.[-1])) |> # add total col
+    mutate_at(-1, ~ 100 * ./sum(.)) |> # convert to % in column
+    kable(digits = 1L) |>
+    add_header_above(header = c(" " = 1, "PR system" = 2, " " = 1))
+
+```
+
+You can see there is a relationship between electoral system and the presence of media bias prior to an election. Among non-PR systems, 51% see media bias in advance of the election and roughly 45% do not. In PR systems, by contrast, less than one-third see the bias and nearly two-thirds do not.  The differences are statistically significant $(\chi^2_{df=2}=6.64,~p=0.04)$. 
+
+
+# Linear regression
+
+Linear regression allows you to model the association between a continuous outcome variable, $Y$, and some set of explanatory variables, e.g., $X$ and $Z$. It's a flexible and powerful tool, especially for estimating conditional effects, or reducing potential bias due to confounding. 
+
+## Regression model
+We begin by modelling the outcome variable, $Y$, as a linear function of some covariates, $X$ and $Z$, and an error term, $e$. For example:
+
+$$
+Y_i = \beta_1 X_i + \beta_2 Z_i + \theta + e_i
+$$
+where:  
+
+- $\beta_1$ the partial slope coefficient on $X$; indicates the expected change in $Y$ for a unit-increase in $X$ while holding $Z$ fixed  
+- $\beta_2$ the partial slope coef. on $Z$; indicates expected change in $Y$ for a unit-increse in $Z$ while holding $X$ fixed  
+- $\theta$ the intercept or constant; represents $E(Y|X = Z = 0)$
+- $e_i$ is the error term; represents residual variation in $Y_i$ and captures both random noise and influence of other causes of $Y$ not included in the model. 
+
+The focal point of the analysis is the estimate of $\beta_1$. However, to estimate this parameter without bias, you must include any potential confounder as a covariate in the model. If, for example, we assume the model above is true and complete but mistakenly estimate the model:
+
+$$
+Y_i = \beta_1^* X_i + \theta^* + e_i
+$$
+
+The estimated slope coefficient from this model will be biased $(\beta_1^* \neq \beta_1)$ whenever the treatment and control variables are correlated, $r_{X,Z} \neq 0$. So take care in specifying your regression models, and be sure to include any factor you suspect is correlated with both $Y$ and $X$.
+
+
+## OLS estimation
+Ordinary Least Squares (OLS) is a technique for estimating the parameters of a regression equation. The logic is simple: find the values of the parameters the jointly minimize the sum of squared errors, $\min \sum e_i^2$. This gives us the estimates from our sample data:
+
+$$
+\begin{aligned}
+Y_i &= E(Y|X,Z) + e_i \\
+    &= (b_1 X_i + b_2 Z_i + a) + e_i
+\end{aligned}
+$$
+where $b_1$ is the OLS estimate of $\beta_1$, $b_2$ the estimate of $\beta_2$ and $a$ the estimate of $\theta$.
+
+Note that the error term is equal to the difference between the observed $Y$ in the data and the expected value of $Y$ from the model. Rearranging from above:
+
+$$
+e_i = Y_i - (b_1 X_i + b_2 Z_i + a)
+$$
+
+Try regressing `vdem_corr` on `wdi_wip`. Then generate the linear prediction and calculate error for each case.
+
+```{r err}
+  library(modelr)
+
+# Estimate model
+  mod1 = lm(vdem_corr ~ wdi_wip, data = qog)
+    mod1
+    
+  select(qog, cname, vdem_corr, wdi_wip) |>
+    na.omit() |>
+    add_predictions(mod1, var = 'vdem.pred') |> # adds model predictions
+    mutate(error = vdem_corr - vdem.pred) |> # calculate error
+    DT::datatable() |>
+    DT::formatRound(columns = 2:5, digits = 2)
+  
+```
+
+Visualize the relationship and think about the prediction and the error respectively.
+
+```{r plot}
+  ggplot(qog, aes(y = vdem_corr, x = wdi_wip)) +
+  geom_point(shape = 21) +
+  geom_smooth(method = 'lm') +
+  theme_minimal()
+```
+
+Again, OLS is a technique that chooses the values of $b_1$, $b_2$, and $a$ that minimize these errors. In fact, the OLS estimator is "BLUE", or the best, linear unbiased estimator.  
+
+
+## Presenting results
+How should you present and talk about regression estimates? Good question. Start by making a table of estimates, ideally with two or three specifications. The table below shows the unconditional relationship, one conditional on level of democracy, and another with controls for wealth and regional effects.
+
+
+```{r mulreg, results = 'asis'}
+# estimate models
+  mod1 = lm(vdem_corr ~ wdi_wip, data = qog)
+  mod2 = lm(vdem_corr ~ wdi_wip + vdem_libdem, data = qog)
+  mod3 = lm(vdem_corr ~ wdi_wip + vdem_libdem + 
+              log(wdi_gdpcapcur) + ht_region, data = qog)
+
+# table of estimates
+  stargazer(mod1, mod2, mod3, type = 'html', keep.stat = 'n')
+```
+
+What do I tell people about this? If you're giving a *short presentation to a lay audience*, say very little. You might, for example, show the bivariate plot and mention that the relationship is significant and robust to different controls. 
+
+If you're *writing a report*, you need to describe your approach, show the table, and take care to interpret the estimates. Why control for these variables? Is the estimate stable across models? In terms of the results I might note:
+
+- In the unconditional model (1), expected corruption scores drop by 0.008 for a percentage-point increase in women's rep. The relationship is significant $(p<0.05)$.  
+- The estimate attenuates in the conditional models with the estimated change in corruption score dropping to -0.004 when controlling for level of democracy, wealth, and region.
+
+Notice the bias present in the unconditional estimate? It changes in the presence of different control variables (meaning that the unconditional estimate absorbed some of the effect of wealth, democracy, region, and more).
+
+
+## Proof of conditional effect  
+Multiple regression promises as a conditional effect. In the models above, the estimated coefficient on the treatment variable, $b_1$, represents the impact of $X$ on $Y$ while holding $Z$ constant. Cool story, bro. It has an aura of "magical thinking" to it. So prove it to yourself using the comparison between models 1 and 2 above.
+
+Step 1 is to "exogenize" $Y$ and $X$, or to strip away the variation in $Y$ and $X$ that is common to $Z$:
+
+```{r exogy}
+# Isolate cases in full model
+  qog2 = qog |>
+    select(vdem_corr, wdi_wip, vdem_libdem) |>
+    na.omit()
+
+# Regress Y on Z
+  m1 = lm(vdem_corr ~ vdem_libdem, data = qog2)
+
+# Regress X on Z
+  m2 = lm(wdi_wip ~ vdem_libdem, data = qog2)
+  
+```
+
+Step 2 is to calculate the residual variation from each estimate. Recall that the error term reflects variation in the outcome *not* explained by the predictors. In this case, it's the part of `vdem_corr` and `wdi_wip` not explained by `vdem_libdem`.
+
+```{r resids}
+# Generate residuals as variables in qog
+  qog2 = qog2 %>%
+    add_predictions(m1, var = 'pred.corr') |>
+    add_predictions(m2, var = 'pred.wip') |>
+    mutate(
+      e.corr = vdem_corr - pred.corr,
+      e.wip = wdi_wip - pred.wip
+    )
+    
+```
+
+Step 3 is to use the residuals from each model, the part of $Y$ and $X$ exogenous to $Z$, in a final regression:
+
+```{r proofcon}
+# Regress e.corr on e.wip
+  lm(e.corr ~ e.wip, qog2)
+
+```
+
+Compare the estimated coefficient to the coefficient on `wdi_wip` in model 2 from the prior section. Same. So partial slope coefficients in multiple regression really do "strip away" the confounding influence of the covariates, yielding the assocaition between the outcome and each predictor variable independent of the other variables in the model.
+
+
+# More advanced topics
+It's not always so easy. Some things come up that require a bit more attention.
+
+## Categorical predictor variables 
+Assume that you have a categorical independent variable, $X$ or $Z$. Can you use it in regression analysis? Yes. You simply include a binary indicator (dummy) for all but one category of the variable. If you have a factor with three levels, include a dummy for two levels; the excluded level becomes the reference category, and the coefficients on the dummies represent the difference of means for the included vs excluded category.
+
+Check the regression tables from the prior section. We controlled for `ht_region` in model 3. It entered the model as a series of dummies for each region. The excluded, or reference, category was Eastern Europe and post Soviet Union.
+
+Consider media bias before an election, `nelda_mbbe`, as a predictor of corruption. Calculate the mean `vdem_corr` for each category of media bias:
+
+```{r table}
+# calculate group means
+  group_by(qog, nelda_mbbe) |>
+    summarize(mean = mean(vdem_corr, na.rm = T))
+```
+
+Now try the same approach with regression:
+
+```{r dumm, results = 'asis'}
+# Estimate
+  catmod = lm(vdem_corr ~ nelda_mbbe, qog)
+
+# Table
+  stargazer(catmod, type = 'html', keep.stat = 'n')
+```
+
+The constant becomes the excluded category, "no media bias". Recall that the constant represents the expected outcome when the predictors equal zero. In this case, a zero on both dummy variables means that the country is scored as "no media bias" on `nelda_mbbe`. 
+
+The coefficients on the included categories, then, represent the difference in means relative to this excluded category. From the table above, the mean corruption score for "Yes" was 0.64, which is equal to 0.35 + 0.29. You would interpret this by reporting that expected corruption is 0.29 points higher in "Yes" countries relative to "No" countries, and the difference is statistically significant.
+
+To test the significance of `nelda_mbbe` as a whole, use ANOVA:
+
+```{r aov2}
+# Get your ANOVA stats
+  aov(catmod) |> summary()
+```
+
+
+## Log transformations
+What if the mean is not an appropriate representation of central tendency? The mean is sensitive to the presence of outliers, or extreme values of a distribution. When outliers cluster on one side of the distribution, the mean is pulled away from the median, creating skewness. That's a problem insofar as linear regression is a model of the mean, and skewness renders the mean an inappropriate statistic.
+
+So we have to fix it. The most common scenario is positive skew in the outcome and/or predictors, and the most common solution is the log transformation. Consider the following with GDP per capita:
+
+```{r logplot}
+# Plot gdp and log(gdp)
+  qog %>%
+    mutate(loggdp = log(wdi_gdpcapcur)) |>
+    pivot_longer(cols = contains('gdp')) |>
+    ggplot(aes(x = value)) +
+    geom_histogram(color = 'white') +
+    facet_wrap(fct_rev(name) ~ ., scales = 'free')
+
+```
+
+While there is severe positive skew in the original metric, the log transformation "normalizes" the distribution. 
+
+The impact of skewness is very similar in the linear regression context. Consider the regression of `vdem_corr` on raw and transformed GDP per capita:
+
+```{r plotlog}
+# 
+  qog %>%
+    mutate(loggdp = log(wdi_gdpcapcur)) |>
+    pivot_longer(cols = contains('gdp')) |>
+    ggplot(aes(x = value, y = vdem_corr)) +
+    geom_point(shape = 21) +
+    geom_smooth(method = 'loess', color = 'red', se = F) +
+    geom_smooth(method = 'lm', se = F) +
+    facet_wrap(fct_rev(name) ~ ., scales = 'free')
+```
+
+Look at the left panel, where we do nothing about positive skew in $X$. The blue line is the linear regression estimate. It is a very poor representation of the relationship. This is no surprise as we are trying to force a straight line onto a curvilinear pattern. The red line is the loess estimator, and shows this curvilinearity (the result of skew).
+
+The right-hand panel shows the relationshp with the log-transformed predictor. Here the straight line from OLS does a good job fitting the data. 
+
+Note two important points about the log-transformation in practice:  
+
+- It addresses positive skew for positively-valued variables. When we encounter a skewed variable with zeroes (e.g., terror attacks for the month), you must use the log + 1 transformation: `lnX = log(1 + X)` as `log(0)` is undefined.   
+- Interpreting the coefficients in a log-transformed model is tricky if you want to frame it in the original metrics. Consider the interpretation of estimate $b$ in different scenarios.  
+  - $Y_i = b X_i + a$: $b$ is the unit-change in $Y$ for a unit increase in $X$.  
+  - $log(Y_i) = b*log(X_i) + a$: $b$ is the percentage change in $Y$ for a one percent increase in $X$.  
+  - $Y_i = b * log(X_i) + a$: $b/100$ is the unit-change in $Y$ for a one percent increase in $X$.  
+  - $log(Y_i) = b X_i + a$: $100 * (e^b - 1)$ is the percentage change in $Y$ for a unit-increase in $X$. (In `r`: `100 * (exp(b) - 1)`)
+  
+  
+
+# Longitudinal data
+I have repeated (over-time) observations for the units in my data. Can I just treat it like normal data? No.
+
+
+## Data
+For ease, let's use the `gapminder` data. This is country-year level data with repeated (annual) records for each country.
+
+```{r gapdata}
+# Use gapminder data
+  df = gapminder::gapminder
+```
+
+## Unit fixed effects
+One assumption of the linear model is that the units in your data are independent (e.g., respondent 1 is a fully separate individual from respondent 2 in a survey). Are Brazil 1993 and Brazil 1994 a fully independent observations? No. So we're in trouble.
+
+One option to manage this problem in the regression context is to estimate unit fixed effects (FE). Specify the model:
+
+$$
+Y_{i,t} = \beta_1 X_{i,t} + \beta_2 Z_{i,t} + \pi_i + \theta + e_{i,t}
+$$
+
+where $Y_{i,t}$ is unit $i$'s measured response at time $t$ and $\pi_i$ is the FE. It represents a dummy variable, or unique y-intercept, for every unit, $i$, in the data. 
+
+Including a fixed effect term has some wonderful benefits. Yes, mathematically, it's just a bunch of unit-specific intercepts. But, practically, that controls for any and all *fixed* or long-term factors unique to a unit. 
+
+To see this in practice, regress `lifeExp` on `gdpPercap` with and without fixed effects.
+
+```{r olsfe, results = 'asis'}
+# Estimate models
+  mod1 = lm(lifeExp ~ I(gdpPercap/1000) + log(pop), data = df)
+  mod2 = lm(lifeExp ~ I(gdpPercap/1000) + log(pop) + country, data = df)
+  
+# table
+  stargazer(mod2, mod1, type = 'html', keep.stat = 'n', 
+            omit = 'country', omit.labels = 'Country FE')
+```
+
+Take note of how the coefficient estimates change when we include the country fixed effects. Note further that, with FEs, you can interpret the coefficients as expected within-unit changes in the outcome. 
+
+## Temporal trends
+Consider that the outcome and treatment variables may be moving globally over time. If so, you want to control for these temporal trends. If you do not, you may find a spurious correlation driven by these baseline trends.
+
+```{r timetrends, results = 'asis'}
+# Estimate models
+  mod3 = lm(lifeExp ~ I(gdpPercap/1000) + log(pop) + year + country, data = df)
+  mod4 = lm(lifeExp ~ I(gdpPercap/1000) + log(pop) + year, data = df)
+  
+# table
+  stargazer(mod3, mod4, mod2, mod1, type = 'html', keep.stat = 'n', 
+            omit = 'country', omit.labels = 'Country FE')
+```
+
+Again, the coefficient on GDP attenuates when controlling for linear time trends. This indicates that some of the association in the basic FE specification corresponds with general global trends in GDP and life expectancy.
+
+## Lagged variables
+One great thing with panel data is that you can use prior measures of the regressors (lagged values) to predict current outcomes. This allows you to ensure proper temporal ordering, and it's a massive advantage when trying to identify causal impact. You can also think of prior measures of the outcome varible as an option. It's not always the right choice, but a very useful tool to have at the ready.
+
+```{r lags, results = 'asis'}
+# Generate lagged vars
+  df = df %>%
+    group_by(country) |>
+    mutate(
+      lifeLag = lag(lifeExp, n = 1, order_by = year),
+      popLag = lag(pop, n = 1, order_by = year),
+      gdpLag = lag(gdpPercap, n = 1, order_by = year)
+    )
+
+# Estimate models
+  l1 = lm(lifeExp ~ log(gdpLag) + log(popLag) + country, data = df)
+  l2 = lm(lifeExp ~ lifeLag + country, data = df)
+  l3 = lm(lifeExp ~ lifeLag + log(gdpLag) + log(popLag) + year + country, data = df)
+
+  stargazer(l1, l2, l3, type = 'html', keep.stat = 'n', 
+            omit = 'country', omit.labels = 'Country FE')
+```
+
+Note that the effect quickly disappears with the inclusion of the lagged outcome variable, which very nearly predicts future outcomes without error. And here is a key problem to keep in mind: adding time trends and lagged outcome measures is appropriate when modeling outcomes that *actually vary* over time.
+
+One of the most important things to say about regression models with longitudinal data is that there's a heavy dose of alchemy here. Some choices are sort of right some of the time and sort of wrong some of the time. Which is right for you? Hard to say, but a good rule of thumb might be to keep it simple and talk to those econ/stats/methods PhD types when you have hard questions on this kind of work.

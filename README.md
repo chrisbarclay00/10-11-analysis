@@ -7,6 +7,7 @@ Step beyond data wrangling and visualization and into the world of statistical a
 - In case you want a basic refresher, see Chs 5-7 of the [SIS 600 Survival Guide](https://austin-hart-pols.github.io/SurvivalGuide/)  
 - See also Ch 7 of Winston Chang's [Cookbook for R](http://www.cookbook-r.com/)  
 - Data for class: `qog23ex.rdata`  
+- Our [750 Stats Crash Course](https://sis750.github.io/10-11-analysis/) for class these two weeks.
 - See `index.Rmd` for example of `downcute` doc from the `rmdformats` package
 
 Consider using the chunk below as the YAML for `downcute` docs:

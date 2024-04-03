@@ -4,9 +4,12 @@
 Step beyond data wrangling and visualization and into the world of statistical analysis. Can we use the data we cleaned, collected, and described to answer empirical questions? Part 1 covers analysis of numeric variables: summary stats, difference of means, ANOVA, and linear regression. Part 2 will cover interaction effects, categorical predictors, tabular analysis, and transformations.
 
 ## Prep for class
+- [REPO FOR CLASS](https://github.com/austin-hart-pols/AnalysisOverview) with [rendered slides here](https://austin-hart-pols.github.io/AnalysisOverview/#1) 
+
+## In case you want to stay with these materials
 - In case you want a basic refresher, see Chs 5-7 of the [SIS 600 Survival Guide](https://austin-hart-pols.github.io/SurvivalGuide/)   
 - See also Ch 7 of Winston Chang's [Cookbook for R](http://www.cookbook-r.com/)  
-- [REPO FOR CLASS](https://github.com/austin-hart-pols/AnalysisOverview) with [rendered slides here](https://austin-hart-pols.github.io/AnalysisOverview/#1)  
+ 
 - Data for class: `qog23ex.rdata`   
 - Our [750 Stats Crash Course](https://sis750.github.io/10-11-analysis/) for class these two weeks.  
 - See `index.Rmd` for example of `downcute` doc from the `rmdformats` package.  
